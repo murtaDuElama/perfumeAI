@@ -1,215 +1,114 @@
-# perfumeAI
-a perfume application
-# PerfumeAI
-## Koku Notası Tabanlı Parfüm Öneri Sistemi
+# PerfumeAI: Koku Notası Tabanlı Parfüm Öneri Sistemi
+
+**PerfumeAI**, kullanıcıların koku tercihlerini (üst, orta ve alt notalar) analiz ederek, binlerce parfüm arasından en uygun seçenekleri belirleyen ve geçmiş tercihlerine göre kişiselleştirilmiş profil oluşturan bir Python uygulamasıdır.
 
 | Özellik | Değer |
-|---------|-------|
-| **Proje Adı** | PerfumeAI – Koku Notası Tabanlı Parfüm Öneri Sistemi |
-| **Proje Dili** | Python 3.10+ |
-| **Geliştirme Ortamı** | Visual Studio Code |
-| **Ekip** | 3 Kişi |
-| **Zorluk Seviyesi** | Orta Seviye |
-| **Versiyon** | v1.0.0 |
+| --- | --- |
+| **Proje Adı** | PerfumeAI – Akıllı Öneri Sistemi |
+| **Veri Kaynağı** | HuggingFace (pelegelraz/perfumes-dataset) |
+| **Veri Hacmi** | 3.000 Dengeli Kayıt (10.000 Ham Veri) |
+| **Algoritma** | TF-IDF + Cosine Similarity |
+| **Arayüz** | Streamlit |
 
 ---
 
-## 1. Proje Hakkında
+##  1. Proje Özeti
 
-PerfumeAI, kullanıcının sevdiği koku notalarını girerek bu notaları içeren parfümleri bulmak ve geçmiş kullanım tercihlerine göre kişiselleştirilmiş öneri sunmak amacıyla geliştirilmiş bir Python uygulamasıdır.
+Parfüm dünyasındaki "kör alış" (koklamadan satın alma) riskini minimize etmeyi hedefleyen bu proje, içerik tabanlı filtreleme yöntemini kullanarak kullanıcının sevdiği notaları matematiksel bir "Zevk Vektörü"ne dönüştürür.
 
-Proje, makine öğrenimi kavramlarını gerçek hayat problemine uygulayan, modüler yapıda, orta zorluk seviyesinde bir çalışmadır.
+###  Temel Hedefler
 
-### 1.1. Problem Tanımı
-
-- Parfüm alırken kokuyu önceden test etmek mümkün değil (kör alış sorunu).
-- Binlerce ürün arasında kişisel nota tercihlerine uygun parfümü bulmak çok zaman alıyor.
-- Daha önce beğendiği parfümler baz alarak yeni öneri yapan bir araç yok.
-
-### 1.2. Proje Amacı
-
-- Kullanıcının seçtiği koku notalarına göre en benzer parfümleri listelemek.
-- Daha önce beğendiği parfümlerin notalarından otomatik profil çıkararak öneri yapmak.
-- Beğendiği parfümleri JSON dosyasına kaydedip sonraki oturumda bu geçmişi kullanmak.
+* **Hassas Eşleştirme:** Kullanıcın seçtiği notalarla en yüksek kosinüs benzerliğine sahip parfümleri bulmak.
+* **Dengeli Öneri:** Her koku ailesinden (Woody, Floral, Citrus vb.) eşit oranda beslenen bir veri setiyle tarafsız sonuçlar sunmak.
+* **Kişiselleştirilmiş Geçmiş:** Beğenilen parfümleri `JSON` formatında saklayarak bir sonraki oturumda otomatik profil önerisi yapmak.
 
 ---
 
-## 2. Sistem Mimarisi
+##  2. Sistem Mimarisi ve Veri Hattı (Data Pipeline)
 
-Proje üç bağımsız modülden oluşur. Her modül tek bir sorumluluğa sahiptir ve diğer modüllerle standart fonksiyon çağrıları üzerinden iletişir.
+Proje, birbirine sıkı sıkıya bağlı üç ana modülden oluşur:
 
-- **Modül 1 – Veri**
-- **Modül 2 – Model**
-- **Modül 3 – Arayüz**
+### 2.1. Veri Akışı
 
-```
-parfumes.csv → kullanici_gecmis.json → veri temizleme → nota vektörizasyon
-                                                                   ↓
-                                                TF-IDF Matrisi → Kosinüs Benzerliği
-                                                                   ↓
-                                          öneri_yap() fonksiyonu ← profil_cikar() fonksiyonu
-                                                                   ↓
-                                                        Streamlit Arayüzü
-                                                        (nota seçimi, öneri kartları, beğeni kaydetme)
-```
-
-### 2.1. Veri Akış Diyagramı
-
-1. Kullanıcı Streamlit arayüzünde sevdiği notaları seçer.
-2. Seçilen notalar TF-IDF ile sayısal vektöre dönüştürülür.
-3. Parfüm veri setindeki tüm parfümlerle kosinüs benzerliği hesaplanır.
-4. En yüksek benzerlik skoruna sahip parfümler ekrana listelenir.
-5. Kullanıcı beğendiği parfüm işaretlerse bu bilgi JSON dosyasına kaydedilir.
-6. Sonraki oturumda JSON'daki geçmiş parfümlerin notasından otomatik profil çıkarılır ve öneri yapılır.
+1. **Veri Çekme:** HuggingFace üzerinden 10.000 parfüm kaydı çekilir.
+2. **Normalizasyon:** Notalar küçük harfe çevrilir, boşluklar temizlenir ve benzersiz koku imzaları oluşturulur.
+3. **Dengeli Örnekleme:** 10 ana koku ailesinden 300'er kayıt seçilerek **3.000 kayıtlık** optimize edilmiş alt küme oluşturulur.
+4. **Vektörizasyon:** `TfidfVectorizer` ile 1.814 farklı öznitelik (nota) çıkarılarak matris oluşturulur.
 
 ### 2.2. Dizin Yapısı
 
-```
+```text
 perfumeai/
 ├── data/
-│   ├── parfumes.csv          # ~500-1000 parfüm kaydını içeren veri seti
-│   └── kullanici_gecmis.json # kullanıcının beğendiği parfümler
+│   ├── parfumes.csv          # 3.000 kayıtlık temizlenmiş dengeli veri seti
+│   └── kullanici_gecmis.json # Kullanıcının beğendiği parfümler (JSON)
 ├── src/
-│   ├── veri.py              # CSV okuma, temizleme, TF-IDF matrisi
-│   ├── model.py             # kosinüs benzerliği, öneri ve profil fonksiyonları
-│   └── arayuz.py            # Streamlit uygulaması
+│   ├── veri.py               # Veri temizleme, Normalizasyon, TF-IDF üretimi
+│   ├── model.py              # Kosinüs benzerliği ve Profil çıkarma motoru
+│   └── arayuz.py             # Streamlit Web Arayüzü
 ├── requirements.txt
 └── README.md
+
 ```
 
 ---
 
-## 3. Kullanılacak Model ve Algoritma
+## 3. Kullanılan Algoritmalar
 
-Proje yalnızca içerik tabanlı filtreleme (content-based filtering) kullanır. Bu, orta seviye için hem yeterince öğretici hem de uygulanabilir bir yaklaşımdır.
+### 3.1. TF-IDF Vektörizasyonu
 
-### 3.1. İçerik Tabanlı Filtreleme
+Notaların sadece varlığına değil, ayırt ediciliğine odaklanılır.
 
-| | |
-|---|---|
-| **Algoritma** | TF-IDF Vektörizasyon + Kosinüs Benzerliği |
-| **Kütüphane** | scikit-learn (TfidfVectorizer, cosine_similarity) |
+* **Analyzer:** `word` (Kelime bazlı)
+* **N-gram:** `(1, 2)` (Örn: "beyaz misk" ikili bir yapı olarak algılanır)
+* **Sublinear TF:** Logaritmik ölçekleme ile nadir notaların ağırlığı artırılır.
 
-**Çalışma Mantığı:**
+### 3.2. Kosinüs Benzerliği
 
-1. Her parfümün koku notaları (üst nota, orta nota, alt nota) tek bir metin dizisi olarak birleştirilir.
-2. TfidfVectorizer bu metinleri sayısal vektöre dönüştürür.
-3. Kullanıcının girdisiyle (veya geçmiş profilden oluşan vektörle) tüm parfümler arasındaki kosinüs benzerliği hesaplanır.
-4. Benzerlik skoru en yüksek parfümler sıralı şekilde öneri olarak sunulur.
-
-### 3.2. Kullanıcı Profili Oluşturma
-
-Kullanıcının daha önce beğendiği parfümlerin notaları toplanarak ortalama bir "zevk vektörü" hesaplanır. Bu vektör sonraki öneri sorgusunda kullanıcının tercihi olarak kullanılır.
-
-```python
-# Örnek mantık (gerçek kod değil, açıklayıcı)
-begeni_notalar = [parfum['notalar'] for parfum in gecmis]
-profil_metni   = ' '.join(begeni_notalar)
-# Bu profil metni TF-IDF ile vektörleştirilip öneri için kullanılır
-```
-
-### 3.3. Kullanılacak Kütüphaneler
-
-| Kütüphane | Versiyon | Kullanım Amacı |
-|-----------|----------|----------------|
-| pandas | >=2.0 | CSV okuma ve veri manipülasyonu |
-| scikit-learn | >=1.3 | TF-IDF ve kosinüs benzerliği |
-| streamlit | >=1.30 | Web tabanlı kullanıcı arayüzü |
-| json | Yerleşik | Kullanıcı geçmişi kaydetme/okuma |
-| pytest | >=7.0 | Birim testleri |
+Kullanıcı sorgusu ($A$) ve parfüm vektörü ($B$) arasındaki açı hesaplanır. Skor **1.0**'a ne kadar yakınsa, parfüm kullanıcının zevkine o kadar uygundur.
 
 ---
 
-## 4. Ekip Dağılımı
-
-Her kişi bağımsız bir modül geliştirir. Modüller birbirini beklemeden paralel çalışabilir; entegrasyon son haftada yapılır.
+##  4. Ekip ve Görev Dağılımı
 
 | Kişi | Rol | Sorumluluklar |
-|------|-----|---------------|
-| Kişi 1 | Veri Müh. | parfumes.csv veri setini temin etme, temizleme, TF-IDF matrisini oluşturma (veri.py) |
-| Kişi 2 | Model Müh. | Kosinüs benzerliği ile öneri fonksiyonu, kullanıcı profili çıkartma, birim testler (model.py) |
-| Kişi 3 | UI Geliştirici | Streamlit arayüzü, nota seçim ekranı, öneri kartları, JSON kayıt/okuma (arayuz.py) |
-
-### 4.1. Kişi 1 – Veri Modülü (veri.py)
-
-**Görevler:**
-
-- Kaggle'dan ~500-1000 parfümlük bir veri seti bulmak veya oluşturmak.
-- Eksik değerleri temizlemek, nota sütunlarını normalize etmek.
-- TF-IDF matrisini hesaplayıp kaydetmek.
-- `load_data()` ve `build_tfidf()` fonksiyonlarını yazmak.
-
-**Teslim Edilecekler:**
-
-- `data/parfumes.csv`
-- `src/veri.py` – `load_data()`, `build_tfidf()` fonksiyonları
-
-### 4.2. Kişi 2 – Model Modülü (model.py)
-
-**Görevler:**
-
-- Kosinüs benzerliği ile en yakın parfümleri bulan `oneri_yap(notalar, n)` fonksiyonu.
-- Geçmiş parfümlerden kullanıcı profili oluşturan `profil_cikar(gecmis)` fonksiyonu.
-- Her iki fonksiyon için pytest ile test yazmak.
-
-**Teslim Edilecekler:**
-
-- `src/model.py` – `oneri_yap()`, `profil_cikar()` fonksiyonları
-- `tests/test_model.py` – birim testleri
-
-### 4.3. Kişi 3 – Arayüz Modülü (arayuz.py)
-
-**Görevler:**
-
-- Streamlit ile nota seçim ekranı oluşturmak (multiselect bileşeni).
-- Öneri sonuçlarını kart formatında göstermek (marka, ad, notalar, skor).
-- "Beğendim" butonuyla parfümü JSON'a kaydetmek.
-- Sayfa başında JSON'dan geçmişi okuyarak profil önerisi göstermek.
-
-**Teslim Edilecekler:**
-
-- `src/arayuz.py` – Streamlit uygulaması
-- `data/kullanici_gecmis.json` – boş şablon dosya
+| --- | --- | --- |
+| **Kişi 1** | **Veri Mühendisi** | HuggingFace entegrasyonu, Dengeli örnekleme (Balanced Sampling), `load_data()` ve `build_tfidf()` fonksiyonları. |
+| **Kişi 2** | **Model Mühendisi** | `oneri_yap()` ve `profil_cikar()` motorları, benzerlik matris hesaplamaları ve birim testler. |
+| **Kişi 3** | **UI Geliştirici** | Streamlit arayüzü, çoklu nota seçimi, ürün kartları ve JSON veri saklama süreçleri. |
 
 ---
 
-## 5. Veri Seti
+##  5. Kurulum ve Çalıştırma
 
-- **Kaynak:** Kaggle – "Perfume Recommendation Dataset" veya benzer açık kaynak
-- **Boyut:** 500 – 1000 parfüm kaydı (yeterli, yönetilebilir)
+### 5.1. Gereksinimler
 
-Her kayıtta bulunması gereken minimum alanlar:
+* Python 3.10+
+* `pip` paket yöneticisi
 
-- `parfum_id`, `ad`, `marka`
-- `ust_nota`, `orta_nota`, `alt_nota` (virgülle ayrılmış liste)
-- `koku_ailesi` (çiçeksi, odunsu, baharatlı, vb.)
-- `ortalama_puan` (1-5 arası)
-
----
-
-## 6. Kurulum ve Çalıştırma
-
-### 6.1. Gereksinimler
-
-- Python 3.10+
-- pip
-
-### 6.2. Kurulum
+### 5.2. Kurulum
 
 ```bash
-git clone https://github.com/kullanici/perfumeai.git
-cd perfumeai
+git clone https://github.com/murtaDuElama/perfumeAI.git
+cd perfumeAI
 pip install -r requirements.txt
+
 ```
 
-### 6.3. Uygulamayı Başlatma
+### 5.3. Uygulamayı Başlatma
 
 ```bash
 streamlit run src/arayuz.py
+
 ```
 
-### 6.4. Testleri Çalıştırma
+---
 
-```bash
-pytest tests/
-```
+## 6. Test Sonuçları
+
+Veri modülü Google Colab ortamında test edilmiş ve aşağıdaki çıktılar doğrulanmıştır:
+
+* **Örnekleme:** 10 koku ailesi x 300 kayıt = 3.000 toplam veri.
+* **Matris Boyutu:** 3.000 Parfüm x 1.814 Özellik.
+* **Hız:** <100ms sorgu süresi.
+
